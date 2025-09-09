@@ -4,6 +4,8 @@ class LifeGamifier {
         this.defaultHabits = ['sleep', 'gym', 'run', 'screen'];
         this.habits = [...this.defaultHabits];
         this.data = this.loadData();
+        this.user = null;
+        this.isOnline = false;
         this.init();
     }
 
@@ -15,15 +17,16 @@ class LifeGamifier {
         this.updateNotificationStatus();
         this.updateScheduledHabits();
         this.setupNotificationCheck();
+        this.setupFirebaseAuth();
     }
 
     loadData() {
         const defaultData = {
             habits: {
-                sleep: { streak: 0, lastCompleted: null, totalCompleted: 0, name: '7+ Hours Sleep', description: 'Get quality rest for better health', icon: '😴', category: 'health' },
-                gym: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Gym Workout', description: 'Build strength and endurance', icon: '💪', category: 'health' },
-                run: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Go for a Run', description: 'Cardio for heart health', icon: '🏃', category: 'health' },
-                screen: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Under 5h Screen Time', description: 'Reduce digital consumption', icon: '📱', category: 'productivity' }
+                sleep: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: '7+ Hours Sleep', description: 'Get quality rest for better health', icon: '😴', category: 'health' },
+                gym: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Gym Workout', description: 'Build strength and endurance', icon: '💪', category: 'health' },
+                run: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Go for a Run', description: 'Cardio for heart health', icon: '🏃', category: 'health' },
+                screen: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Under 5h Screen Time', description: 'Reduce digital consumption', icon: '📱', category: 'productivity' }
             },
             customHabits: {},
             currentStreak: 0,
@@ -106,16 +109,25 @@ class LifeGamifier {
             this.showNotification(`Undid ${habitName} completion`, 'info');
         } else {
             // Mark as completed for the first time today
-            const wasCompletedYesterday = habitData.lastCompleted === new Date(Date.now() - 86400000).toDateString();
+            const yesterday = new Date(Date.now() - 86400000).toDateString();
+            const wasCompletedYesterday = habitData.lastCompleted === yesterday;
+            const wasRestDayYesterday = habitData.lastRestDay === yesterday;
             const isFirstTimeToday = habitData.lastCompleted !== today;
             
             habitData.lastCompleted = today;
             habitData.totalCompleted++;
             
+            // Clear any rest day for today
+            if (habitData.lastRestDay === today) {
+                habitData.lastRestDay = null;
+                const restButton = document.getElementById(`${habitName}RestBtn`);
+                if (restButton) restButton.classList.remove('rest-day');
+            }
+            
             // Update streak only if this is the first completion today
             if (isFirstTimeToday) {
-                if (wasCompletedYesterday) {
-                    // Continue streak
+                if (wasCompletedYesterday || wasRestDayYesterday) {
+                    // Continue streak (either completed or rested yesterday)
                     habitData.streak++;
                 } else {
                     // Start new streak
@@ -128,6 +140,53 @@ class LifeGamifier {
             
             // Check for achievements
             this.checkAchievements(habitName, habitData.streak);
+        }
+        
+        this.saveData();
+        this.updateDisplay();
+        this.updateProgress();
+        this.updateCurrentStreak();
+    }
+
+    markRestDay(habitName) {
+        const today = new Date().toDateString();
+        const habitData = this.getHabitData(habitName);
+        const restButton = document.getElementById(`${habitName}RestBtn`);
+        
+        if (habitData.lastRestDay === today) {
+            // Already marked as rest day, undo
+            habitData.lastRestDay = null;
+            restButton.classList.remove('rest-day');
+            this.showNotification(`Undid rest day for ${habitName}`, 'info');
+        } else {
+            // Mark as rest day
+            const yesterday = new Date(Date.now() - 86400000).toDateString();
+            const wasCompletedYesterday = habitData.lastCompleted === yesterday;
+            const wasRestDayYesterday = habitData.lastRestDay === yesterday;
+            
+            habitData.lastRestDay = today;
+            
+            // Clear any completion for today
+            if (habitData.lastCompleted === today) {
+                habitData.lastCompleted = null;
+                habitData.totalCompleted = Math.max(0, habitData.totalCompleted - 1);
+                const button = document.getElementById(`${habitName}Btn`);
+                if (button) button.classList.remove('completed');
+            }
+            
+            // Update streak logic - rest days maintain streaks
+            if (wasCompletedYesterday || wasRestDayYesterday) {
+                // Continue streak (either completed or rested yesterday)
+                if (habitData.streak === 0) {
+                    habitData.streak = 1;
+                }
+            } else {
+                // Start new streak if neither completed nor rested yesterday
+                habitData.streak = 1;
+            }
+            
+            restButton.classList.add('rest-day');
+            this.showNotification(`Rest day marked for ${habitName} - streak maintained!`, 'success');
         }
         
         this.saveData();
@@ -157,7 +216,9 @@ class LifeGamifier {
     createHabitCard(habitId, habitData) {
         const today = new Date().toDateString();
         const isCompleted = habitData.lastCompleted === today;
+        const isRestDay = habitData.lastRestDay === today;
         const isCustom = !this.defaultHabits.includes(habitId);
+        const showRestButton = habitId === 'gym' || habitId === 'run';
         
         const card = document.createElement('div');
         card.className = 'habit-card';
@@ -173,10 +234,18 @@ class LifeGamifier {
                     <div class="streak-info">Streak: <span class="streak-count" id="${habitId}Streak">${habitData.streak}</span> days</div>
                 </div>
             </div>
-            <button class="habit-btn ${isCompleted ? 'completed' : ''}" id="${habitId}Btn" onclick="toggleHabit('${habitId}')">
-                <span class="btn-text">Mark Complete</span>
-                <span class="checkmark">✓</span>
-            </button>
+            <div class="habit-actions">
+                <button class="habit-btn ${isCompleted ? 'completed' : ''}" id="${habitId}Btn" onclick="toggleHabit('${habitId}')">
+                    <span class="btn-text">Mark Complete</span>
+                    <span class="checkmark">✓</span>
+                </button>
+                ${showRestButton ? `
+                    <button class="rest-btn ${isRestDay ? 'rest-day' : ''}" id="${habitId}RestBtn" onclick="markRestDay('${habitId}')">
+                        <span class="btn-text">Rest Day</span>
+                        <span class="rest-icon">😴</span>
+                    </button>
+                ` : ''}
+            </div>
         `;
         
         return card;
@@ -186,21 +255,29 @@ class LifeGamifier {
         const today = new Date().toDateString();
         const yesterday = new Date(Date.now() - 86400000).toDateString();
         
-        // Check if all habits were completed today
+        // Check if all habits were completed OR rested today (for gym/run)
         let allCompletedToday = true;
         this.habits.forEach(habit => {
             const habitData = this.getHabitData(habit);
-            if (habitData && habitData.lastCompleted !== today) {
-                allCompletedToday = false;
+            if (habitData) {
+                const isCompleted = habitData.lastCompleted === today;
+                const isRestDay = (habit === 'gym' || habit === 'run') && habitData.lastRestDay === today;
+                if (!isCompleted && !isRestDay) {
+                    allCompletedToday = false;
+                }
             }
         });
         
-        // Check if all habits were completed yesterday
+        // Check if all habits were completed OR rested yesterday (for gym/run)
         let allCompletedYesterday = true;
         this.habits.forEach(habit => {
             const habitData = this.getHabitData(habit);
-            if (habitData && habitData.lastCompleted !== yesterday) {
-                allCompletedYesterday = false;
+            if (habitData) {
+                const wasCompleted = habitData.lastCompleted === yesterday;
+                const wasRestDay = (habit === 'gym' || habit === 'run') && habitData.lastRestDay === yesterday;
+                if (!wasCompleted && !wasRestDay) {
+                    allCompletedYesterday = false;
+                }
             }
         });
         
@@ -398,6 +475,7 @@ class LifeGamifier {
             category: category,
             streak: 0,
             lastCompleted: null,
+            lastRestDay: null,
             totalCompleted: 0
         };
         
@@ -594,6 +672,119 @@ class LifeGamifier {
             }
         }, 60000); // Check every minute
     }
+
+    // Firebase Authentication Methods
+    setupFirebaseAuth() {
+        if (window.firebaseOnAuthStateChanged) {
+            window.firebaseOnAuthStateChanged(window.firebaseAuth, (user) => {
+                if (user) {
+                    this.user = user;
+                    this.isOnline = true;
+                    this.updateUserUI(user);
+                    this.loadUserDataFromFirestore();
+                } else {
+                    this.user = null;
+                    this.isOnline = false;
+                    this.updateUserUI(null);
+                    this.loadLocalData();
+                }
+            });
+        }
+    }
+
+    updateUserUI(user) {
+        const loginBtn = document.getElementById('loginBtn');
+        const userInfo = document.getElementById('userInfo');
+        const userAvatar = document.getElementById('userAvatar');
+        const userName = document.getElementById('userName');
+
+        if (user) {
+            loginBtn.style.display = 'none';
+            userInfo.style.display = 'flex';
+            userAvatar.src = user.photoURL;
+            userName.textContent = user.displayName;
+        } else {
+            loginBtn.style.display = 'flex';
+            userInfo.style.display = 'none';
+        }
+    }
+
+    async loadUserDataFromFirestore() {
+        if (!this.user || !window.firebaseGetDoc || !window.firebaseDoc) return;
+
+        try {
+            const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', this.user.uid);
+            const userDoc = await window.firebaseGetDoc(userDocRef);
+            
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                this.data = { ...this.data, ...userData };
+                this.saveData();
+                this.updateDisplay();
+                this.updateProgress();
+                this.updateAchievements();
+                this.updateScheduledHabits();
+                this.showNotification('Data synced from cloud!', 'success');
+            } else {
+                // First time user - save their local data to Firestore
+                await this.saveUserDataToFirestore();
+                this.showNotification('Data saved to cloud!', 'success');
+            }
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            this.showNotification('Error syncing data', 'info');
+        }
+    }
+
+    async saveUserDataToFirestore() {
+        if (!this.user || !window.firebaseSetDoc || !window.firebaseDoc) return;
+
+        const syncStatus = document.getElementById('syncStatus');
+        if (syncStatus) {
+            syncStatus.classList.add('syncing');
+            syncStatus.title = 'Syncing to cloud...';
+        }
+
+        try {
+            const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', this.user.uid);
+            await window.firebaseSetDoc(userDocRef, this.data);
+            
+            if (syncStatus) {
+                syncStatus.classList.remove('syncing', 'error');
+                syncStatus.title = 'Data synced to cloud';
+            }
+            return true;
+        } catch (error) {
+            console.error('Error saving user data:', error);
+            if (syncStatus) {
+                syncStatus.classList.remove('syncing');
+                syncStatus.classList.add('error');
+                syncStatus.title = 'Sync failed - using local data';
+            }
+            throw error;
+        }
+    }
+
+    loadLocalData() {
+        // Load data from localStorage when offline
+        this.data = this.loadData();
+        this.updateDisplay();
+        this.updateProgress();
+        this.updateAchievements();
+        this.updateScheduledHabits();
+    }
+
+    // Override saveData to also save to Firestore when online
+    saveData() {
+        localStorage.setItem('lifeGamifierData', JSON.stringify(this.data));
+        if (this.isOnline && this.user) {
+            // Save to cloud asynchronously without blocking UI
+            this.saveUserDataToFirestore().catch(error => {
+                console.error('Failed to sync to cloud:', error);
+                // Don't show error to user for every save - it's not critical
+            });
+        }
+    }
 }
 
 // Initialize the app when DOM is loaded
@@ -604,6 +795,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // Global function for habit buttons
 function toggleHabit(habitName) {
     window.lifeGamifier.toggleHabit(habitName);
+}
+
+function markRestDay(habitName) {
+    window.lifeGamifier.markRestDay(habitName);
 }
 
 // Modal functions
@@ -710,6 +905,41 @@ function removeHabitSchedule(habitId) {
         window.lifeGamifier.saveData();
         window.lifeGamifier.updateScheduledHabits();
         window.lifeGamifier.showNotification(`Removed schedule for ${habitData.name}`, 'info');
+    }
+}
+
+// Firebase Authentication Functions
+async function loginWithGoogle() {
+    if (!window.firebaseSignIn || !window.firebaseAuth || !window.firebaseProvider) {
+        window.lifeGamifier.showNotification('Firebase not loaded. Please refresh the page.', 'info');
+        return;
+    }
+
+    try {
+        const result = await window.firebaseSignIn(window.firebaseAuth, window.firebaseProvider);
+        window.lifeGamifier.showNotification(`Welcome, ${result.user.displayName}!`, 'success');
+    } catch (error) {
+        console.error('Login error:', error);
+        if (error.code === 'auth/popup-closed-by-user') {
+            window.lifeGamifier.showNotification('Login cancelled', 'info');
+        } else {
+            window.lifeGamifier.showNotification('Login failed. Please try again.', 'info');
+        }
+    }
+}
+
+async function logout() {
+    if (!window.firebaseSignOut || !window.firebaseAuth) {
+        window.lifeGamifier.showNotification('Firebase not loaded. Please refresh the page.', 'info');
+        return;
+    }
+
+    try {
+        await window.firebaseSignOut(window.firebaseAuth);
+        window.lifeGamifier.showNotification('Logged out successfully', 'info');
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.lifeGamifier.showNotification('Logout failed. Please try again.', 'info');
     }
 }
 
