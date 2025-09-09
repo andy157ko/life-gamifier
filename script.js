@@ -20,7 +20,7 @@ class LifeGamifier {
     loadData() {
         const defaultData = {
             habits: {
-                sleep: { streak: 0, lastCompleted: null, totalCompleted: 0, name: '8+ Hours Sleep', description: 'Get quality rest for better health', icon: '😴', category: 'health' },
+                sleep: { streak: 0, lastCompleted: null, totalCompleted: 0, name: '7+ Hours Sleep', description: 'Get quality rest for better health', icon: '😴', category: 'health' },
                 gym: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Gym Workout', description: 'Build strength and endurance', icon: '💪', category: 'health' },
                 run: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Go for a Run', description: 'Cardio for heart health', icon: '🏃', category: 'health' },
                 screen: { streak: 0, lastCompleted: null, totalCompleted: 0, name: 'Under 5h Screen Time', description: 'Reduce digital consumption', icon: '📱', category: 'productivity' }
@@ -39,6 +39,13 @@ class LifeGamifier {
             const parsed = JSON.parse(saved);
             // Merge with defaults to handle new properties
             const merged = { ...defaultData, ...parsed };
+            
+            // Update existing habit data if needed
+            if (merged.habits && merged.habits.sleep && merged.habits.sleep.name === '8+ Hours Sleep') {
+                merged.habits.sleep.name = '7+ Hours Sleep';
+                // Save the updated data immediately
+                localStorage.setItem('lifeGamifierData', JSON.stringify(merged));
+            }
             
             // Load custom habits into the habits array
             if (merged.customHabits) {
