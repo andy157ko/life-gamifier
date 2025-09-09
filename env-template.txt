@@ -1,0 +1,11 @@
+# Firebase Configuration Template
+# Copy these values to your Netlify environment variables
+# Or create a .env file locally with these values
+
+FIREBASE_API_KEY=AIzaSyAW9OWS46n_7lyVcY99rmRT0v5gi9x63IY
+FIREBASE_AUTH_DOMAIN=life-gamifier.firebaseapp.com
+FIREBASE_PROJECT_ID=life-gamifier
+FIREBASE_STORAGE_BUCKET=life-gamifier.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=108524541408
+FIREBASE_APP_ID=1:108524541408:web:bdf1f3acadcb692335c785
+FIREBASE_MEASUREMENT_ID=G-LF7TTMS4WN

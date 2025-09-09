@@ -1,0 +1,16 @@
+{
+  "name": "life-gamifier",
+  "version": "1.0.0",
+  "description": "A habit tracking app that gamifies your daily routines",
+  "main": "index.html",
+  "scripts": {
+    "build": "node build-firebase-config.js",
+    "dev": "python3 -m http.server 8000"
+  },
+  "keywords": ["habits", "tracking", "gamification", "firebase", "pwa"],
+  "author": "Andy",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

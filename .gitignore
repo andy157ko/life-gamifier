@@ -5,6 +5,10 @@ firebase-config.json
 .env.local
 .env.production
 
+# Generated files
+dist/
+build/
+
 # API Keys and Secrets
 config.js
 secrets.js

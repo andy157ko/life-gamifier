@@ -18,6 +18,7 @@ else
     echo "   1. Edit firebase-config.js with your actual Firebase configuration"
     echo "   2. Get your config from Firebase Console → Project Settings → Web App"
     echo "   3. Replace the placeholder values in firebase-config.js"
+    echo "   4. Your actual config is already in firebase-config.js (with real API keys)"
     echo ""
     echo "🔒 Security: firebase-config.js is automatically ignored by git"
 fi
