@@ -1,14 +1,12 @@
 // Firebase Configuration
-// This file will be replaced during Netlify build with real values from environment variables
-
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_ENV_VAR",
-  authDomain: "REPLACE_WITH_ENV_VAR",
-  projectId: "REPLACE_WITH_ENV_VAR",
-  storageBucket: "REPLACE_WITH_ENV_VAR",
-  messagingSenderId: "REPLACE_WITH_ENV_VAR",
-  appId: "REPLACE_WITH_ENV_VAR",
-  measurementId: "REPLACE_WITH_ENV_VAR"
+  apiKey: "AIzaSyAW9OWS46n_7lyVcY99rmRT0v5gi9x63IY",
+  authDomain: "life-gamifier.firebaseapp.com",
+  projectId: "life-gamifier",
+  storageBucket: "life-gamifier.firebasestorage.app",
+  messagingSenderId: "108524541408",
+  appId: "1:108524541408:web:bdf1f3acadcb692335c785",
+  measurementId: "G-LF7TTMS4WN"
 };
 
 // Make it available globally
