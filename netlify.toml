@@ -1,5 +1,5 @@
 [build]
-  # Simple build command to ensure Firebase config is available
+  # Generate Firebase config from environment variables
   command = "node build.js"
   publish = "."
 
