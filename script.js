@@ -6,6 +6,7 @@ class LifeGamifier {
         this.data = this.loadData();
         this.user = null;
         this.isOnline = false;
+        this.isLoggingOut = false;
         this.init();
     }
 
@@ -692,13 +693,17 @@ class LifeGamifier {
                 if (user) {
                     this.user = user;
                     this.isOnline = true;
+                    this.isLoggingOut = false;
                     this.updateUserUI(user);
                     this.loadUserDataFromFirestore();
                 } else {
                     this.user = null;
                     this.isOnline = false;
                     this.updateUserUI(null);
-                    this.loadLocalData();
+                    // Only reload local data if we're not intentionally logging out
+                    if (!this.isLoggingOut) {
+                        this.loadLocalData();
+                    }
                 }
             });
         }
@@ -798,6 +803,41 @@ class LifeGamifier {
                 // Don't show error to user for every save - it's not critical
             });
         }
+    }
+
+    // Reset all data to default state (used on logout)
+    resetToDefaultData() {
+        // Reset habits array to only default habits
+        this.habits = [...this.defaultHabits];
+        
+        // Reset data to default state
+        this.data = {
+            habits: {
+                sleep: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: '7+ Hours Sleep', description: 'Get quality rest for better health', icon: '😴', category: 'health' },
+                gym: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Gym Workout', description: 'Build strength and endurance', icon: '💪', category: 'health' },
+                run: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Go for a Run', description: 'Cardio for heart health', icon: '🏃', category: 'health' },
+                screen: { streak: 0, lastCompleted: null, lastRestDay: null, totalCompleted: 0, name: 'Under 5h Screen Time', description: 'Reduce digital consumption', icon: '📱', category: 'productivity' }
+            },
+            customHabits: {},
+            currentStreak: 0,
+            bestStreak: 0,
+            achievements: ['🎯 Start your journey!'],
+            lastResetDate: new Date().toDateString(),
+            lastStreakCalculation: null,
+            notificationsEnabled: false,
+            scheduledHabits: {}
+        };
+        
+        // Save the reset data locally
+        this.saveData();
+        
+        // Update all UI elements
+        this.updateDisplay();
+        this.updateProgress();
+        this.updateCurrentStreak();
+        this.updateAchievements();
+        this.updateScheduledHabits();
+        this.updateNotificationStatus();
     }
 }
 
@@ -949,7 +989,14 @@ async function logout() {
     }
 
     try {
+        // Set flag to indicate we're intentionally logging out
+        window.lifeGamifier.isLoggingOut = true;
+        
+        // Reset all app data to default state BEFORE signing out
+        window.lifeGamifier.resetToDefaultData();
+        
         await window.firebaseSignOut(window.firebaseAuth);
+        
         window.lifeGamifier.showNotification('Logged out successfully', 'info');
     } catch (error) {
         console.error('Logout error:', error);
