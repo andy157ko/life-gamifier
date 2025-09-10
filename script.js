@@ -148,7 +148,6 @@ class LifeGamifier {
         this.saveData();
         this.updateDisplay();
         this.updateProgress();
-        this.updateCurrentStreak();
     }
 
     markRestDay(habitName) {
@@ -195,7 +194,6 @@ class LifeGamifier {
         this.saveData();
         this.updateDisplay();
         this.updateProgress();
-        this.updateCurrentStreak();
     }
 
     updateDisplay() {
@@ -285,28 +283,22 @@ class LifeGamifier {
         });
         
         // Calculate current streak based on completion status
-        // Only update if this is the first time we're calculating for today
-        if (!this.data.lastStreakCalculation || this.data.lastStreakCalculation !== today) {
-            if (allCompletedToday) {
-                // All habits completed today
-                if (allCompletedYesterday) {
-                    // Continue existing streak - increment it
-                    this.data.currentStreak++;
-                } else {
-                    // Start new streak (first day all habits completed)
-                    this.data.currentStreak = 1;
-                }
+        if (allCompletedToday) {
+            // All habits completed today
+            if (allCompletedYesterday) {
+                // Continue existing streak - increment it
+                this.data.currentStreak++;
             } else {
-                // Not all habits completed today
-                if (!allCompletedYesterday) {
-                    // Reset streak if yesterday wasn't completed either
-                    this.data.currentStreak = 0;
-                }
-                // If yesterday was completed but today isn't, keep current streak as is
+                // Start new streak (first day all habits completed)
+                this.data.currentStreak = 1;
             }
-            
-            // Mark that we've calculated the streak for today
-            this.data.lastStreakCalculation = today;
+        } else {
+            // Not all habits completed today
+            if (!allCompletedYesterday) {
+                // Reset streak if yesterday wasn't completed either
+                this.data.currentStreak = 0;
+            }
+            // If yesterday was completed but today isn't, keep current streak as is
         }
         
         // Update best streak if current is higher
@@ -326,16 +318,22 @@ class LifeGamifier {
         const today = new Date().toDateString();
         let completedCount = 0;
         
+        console.log('=== updateProgress Debug ===');
+        console.log('Today:', today);
+        
         this.habits.forEach(habit => {
             const habitData = this.getHabitData(habit);
             if (habitData) {
                 const isCompleted = habitData.lastCompleted === today;
                 const isRestDay = (habit === 'gym' || habit === 'run') && habitData.lastRestDay === today;
+                console.log(`${habit}: completed=${isCompleted}, restDay=${isRestDay}, lastCompleted=${habitData.lastCompleted}, lastRestDay=${habitData.lastRestDay}`);
                 if (isCompleted || isRestDay) {
                     completedCount++;
                 }
             }
         });
+        
+        console.log('Total completed count:', completedCount);
         
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
@@ -735,13 +733,28 @@ class LifeGamifier {
             
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                this.data = { ...this.data, ...userData };
+                // Load cloud data directly, don't merge with current data
+                this.data = userData;
+                // Restore habits array from the loaded data
+                this.habits = [...this.defaultHabits];
+                if (userData.customHabits) {
+                    Object.keys(userData.customHabits).forEach(habitId => {
+                        if (!this.habits.includes(habitId)) {
+                            this.habits.push(habitId);
+                        }
+                    });
+                }
                 this.saveData();
-                this.updateDisplay();
+                // Update UI without recalculating streak
+                this.renderHabits();
                 this.updateProgress();
-                this.updateCurrentStreak();
                 this.updateAchievements();
                 this.updateScheduledHabits();
+                
+                // Manually update streak display from loaded data (don't recalculate)
+                document.getElementById('currentStreak').textContent = this.data.currentStreak;
+                document.getElementById('bestStreak').textContent = this.data.bestStreak;
+                
                 this.showNotification('Data synced from cloud!', 'success');
             } else {
                 // First time user - save their local data to Firestore
@@ -807,6 +820,9 @@ class LifeGamifier {
 
     // Reset all data to default state (used on logout)
     resetToDefaultData() {
+        // Clear localStorage to ensure fresh data is loaded from cloud on next login
+        localStorage.removeItem('lifeGamifierData');
+        
         // Reset habits array to only default habits
         this.habits = [...this.defaultHabits];
         
@@ -827,9 +843,6 @@ class LifeGamifier {
             notificationsEnabled: false,
             scheduledHabits: {}
         };
-        
-        // Save the reset data locally
-        this.saveData();
         
         // Update all UI elements
         this.updateDisplay();
